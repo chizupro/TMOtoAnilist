@@ -106,9 +106,7 @@ function setBadge(status) {
 
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
-function startAuth() {
- 
-  const CLIENT_ID = "39187";
+const CLIENT_ID = "39187";
 
 function startAuth() {
   const redirectUri = window.location.origin + window.location.pathname;
@@ -116,7 +114,7 @@ function startAuth() {
   window.location.href =
     `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${redirectUri}`;
 }
-}
+
 
 function handleAuth() {
   const hash = window.location.hash.substring(1);
