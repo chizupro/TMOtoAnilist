@@ -131,36 +131,41 @@ function handleAuth() {
   // limpiar URL
   window.history.replaceState(null, null, window.location.pathname);
 
-  // verificar usuario automáticamente
-  initUser();
+  if (typeof initUser == "function") {
+    initUser();
+  }
 }
 
 async function initUser() {
   const msgEl = document.getElementById('authMsg');
-  msgEl.textContent = 'Verificando...';
-  msgEl.className = 'auth-msg';
+
+  if (msgEl) {
+    msgEl.textContent = 'Verificando...';
+    msgEl.className = 'auth-msg';
+  }
 
   try {
-    const res = await alGql('{ Viewer { id name } }', true);
+    const res = await alGql('{ Viewer { id name } }', {}, true);
 
     if (res?.data?.Viewer) {
       S.username = res.data.Viewer.name;
       S.userId   = res.data.Viewer.id;
 
-      msgEl.textContent = `✓ Conectado como ${S.username}`;
-      msgEl.className   = 'auth-msg ok';
+      if (msgEl) {
+        msgEl.textContent = `✓ Conectado como ${S.username}`;
+        msgEl.className   = 'auth-msg ok';
+      }
 
       document.getElementById('btnViewList').onclick =
         () => window.open(`https://anilist.co/user/${S.username}/mangalist`, '_blank');
 
       setTimeout(() => goStep(1), 900);
-    } else {
-      msgEl.textContent = 'Error al autenticar';
-      msgEl.className   = 'auth-msg err';
     }
   } catch (e) {
-    msgEl.textContent = `Error: ${e.message}`;
-    msgEl.className   = 'auth-msg err';
+    if (msgEl) {
+      msgEl.textContent = `Error: ${e.message}`;
+      msgEl.className   = 'auth-msg err';
+    }
   }
 }
 
