@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TMO → AniList Importer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <span class="logo-tmo">TMO</span>
+      <span class="logo-arrow">→</span>
+      <span class="logo-al">AniList</span>
+    </div>
+    <p class="tagline">Recupera tus listas del cierre de TMO e impórtalas a AniList automáticamente.</p>
+  </header>
+
+  <!-- STEPPER -->
+  <div class="stepper" id="stepper">
+    <div class="step-item active" data-step="0">
+      <div class="step-num">1</div>
+      <div class="step-label">Conectar AniList</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step-item" data-step="1">
+      <div class="step-num">2</div>
+      <div class="step-label">Subir HTMLs</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step-item" data-step="2">
+      <div class="step-num">3</div>
+      <div class="step-label">Vista previa</div>
+    </div>
+    <div class="step-line"></div>
+    <div class="step-item" data-step="3">
+      <div class="step-num">4</div>
+      <div class="step-label">Importar</div>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- ── PASO 1: AUTH ── -->
+    <section class="panel active" id="panel-0">
+      <h2>Conectar con AniList</h2>
+      <p class="panel-desc">
+        Necesitas crear una aplicación gratuita en AniList para obtener un <strong>Client ID</strong>.
+        Solo toma 2 minutos y es completamente gratis.
+      </p>
+
+      <div class="instruction-card">
+        <div class="instruction-title">Cómo obtener tu Client ID</div>
+        <ol>
+          <li>Ve a <a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a></li>
+          <li>Haz clic en <em>"Create new client"</em></li>
+          <li>Ponle cualquier nombre (ej: <code>TMO Importer</code>)</li>
+          <li>En <em>Redirect URL</em> pon exactamente: <code>https://anilist.co/api/v2/oauth/pin</code></li>
+          <li>Guarda y copia el <strong>Client ID</strong> que aparece</li>
+        </ol>
+      </div>
+
+      <div class="field-group">
+        <label for="clientId">Client ID de AniList</label>
+        <input type="text" id="clientId" placeholder="Ej: 24601" autocomplete="off" />
+      </div>
+
+      <button class="btn-primary" id="btnAuth" onclick="startAuth()">
+        Abrir ventana de autorización →
+      </button>
+
+      <div id="tokenSection" class="token-section hidden">
+        <div class="info-box">
+          <strong>Autoriza la app</strong> en la ventana que se abrió. AniList te mostrará un token largo.
+          Cópialo completo y pégalo aquí abajo.
+        </div>
+        <div class="field-group">
+          <label for="authToken">Access Token</label>
+          <input type="text" id="authToken" placeholder="eyJ0eXAiOiJKV1QiLCJhbGci..." autocomplete="off" />
+        </div>
+        <button class="btn-primary" onclick="verifyToken()">Verificar y continuar →</button>
+        <div id="authMsg" class="auth-msg"></div>
+      </div>
+    </section>
+
+    <!-- ── PASO 2: UPLOAD ── -->
+    <section class="panel" id="panel-1">
+      <h2>Sube tus archivos HTML de TMO</h2>
+      <p class="panel-desc">
+        Puedes subir <strong>varios HTMLs a la vez</strong>: Siguiendo, Plan a leer, Completado, etc.
+        El importador detecta el estado de cada lista por el título del archivo o de la página.
+      </p>
+
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" multiple accept=".html,.htm" />
+        <div class="drop-icon">📂</div>
+        <div class="drop-text">Arrastra tus archivos HTML aquí</div>
+        <div class="drop-sub">o haz clic para seleccionarlos</div>
+        <div class="drop-hint">Siguiendo.html · Plan_a_leer.html · Completado.html · ...</div>
+      </div>
+
+      <div id="fileList" class="file-list hidden"></div>
+
+      <details class="status-map-details" id="statusMapDetails">
+        <summary>Editar mapeo de estados</summary>
+        <div class="status-map-grid" id="statusMapUI">
+          <p class="empty-hint">Carga archivos primero.</p>
+        </div>
+      </details>
+
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="goStep(0)">← Atrás</button>
+        <button class="btn-primary" id="btnParse" onclick="parseAllFiles()" disabled>
+          Analizar archivos →
+        </button>
+      </div>
+    </section>
+
+    <!-- ── PASO 3: PREVIEW ── -->
+    <section class="panel" id="panel-2">
+      <h2>Vista previa</h2>
+      <p class="panel-desc">
+        Revisa lo que se va a importar. Se usan el título original y el título en español
+        como nombres alternativos para buscar en AniList.
+      </p>
+
+      <div class="stats-grid" id="prevStats"></div>
+
+      <div class="manga-list-wrap">
+        <div class="manga-list" id="prevList"></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-secondary" onclick="goStep(1)">← Atrás</button>
+        <button class="btn-primary" onclick="goStep(3); runImport()">
+          Importar a AniList →
+        </button>
+      </div>
+    </section>
+
+    <!-- ── PASO 4: IMPORT ── -->
+    <section class="panel" id="panel-3">
+      <h2>Importando...</h2>
+
+      <div class="stats-grid" id="importStats">
+        <div class="stat-card">
+          <div class="stat-num" id="stTotal">0</div>
+          <div class="stat-lbl">Total</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num ok" id="stOk">0</div>
+          <div class="stat-lbl">Guardados</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num warn" id="stSkip">0</div>
+          <div class="stat-lbl">No hallados</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num err" id="stErr">0</div>
+          <div class="stat-lbl">Errores</div>
+        </div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progFill"></div>
+        </div>
+        <div class="progress-label" id="progLabel">0 / 0</div>
+      </div>
+
+      <div class="log" id="importLog"></div>
+
+      <div class="done-section hidden" id="doneSection">
+        <div class="info-box success">
+          ¡Importación completada! Revisa el log para ver qué no se encontró.
+        </div>
+        <div class="btn-row">
+          <button class="btn-secondary" onclick="dlReport()">⬇ Descargar reporte CSV</button>
+          <button class="btn-primary" id="btnViewList">Ver mi lista en AniList →</button>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>
+      Hecho por la comunidad de TMO para la comunidad de TMO. · 
+      <a href="https://github.com/TU_USUARIO/tmo-anilist-importer" target="_blank" rel="noopener">GitHub</a> ·
+      No afiliado con AniList ni con TMO.
+    </p>
+  </footer>
+
+  <script src="importer.js"></script>
+</body>
+</html>
