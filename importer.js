@@ -106,7 +106,7 @@ function setBadge(status) {
 
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
-const CLIENT_ID = "39187";
+const CLIENT_ID = "39191";
 
 function startAuth() {
   const redirectUri = window.location.origin + window.location.pathname;
