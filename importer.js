@@ -111,8 +111,10 @@ const CLIENT_ID = "39191";
 function startAuth() {
   const redirectUri = "https://chizupro.github.io/TMOtoAnilist/";
 
-  window.location.href =
-    `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${redirectUri}`;
+  const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${redirectUri}`;
+
+  console.log(url);
+  window.location.href = url;
 }
 
 
