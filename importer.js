@@ -107,41 +107,59 @@ function setBadge(status) {
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
 function startAuth() {
-  const cid = document.getElementById('clientId').value.trim();
-  if (!cid) { alert('Ingresa tu Client ID primero.'); return; }
-  S.clientId = cid;
-  window.open(
-    `https://anilist.co/api/v2/oauth/authorize?client_id=${cid}&response_type=token`,
-    '_blank'
-  );
-  document.getElementById('tokenSection').classList.remove('hidden');
+ 
+  const CLIENT_ID = "39187";
+
+function startAuth() {
+  const redirectUri = window.location.origin + window.location.pathname;
+
+  window.location.href =
+    `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${redirectUri}`;
+}
 }
 
-async function verifyToken() {
-  const token = document.getElementById('authToken').value.trim();
-  if (!token) return;
-  S.token = token;
+function handleAuth() {
+  const hash = window.location.hash.substring(1);
+  const params = new URLSearchParams(hash);
+  const token = params.get("access_token");
 
+  if (!token) return;
+
+  S.token = token;
+  localStorage.setItem("anilist_token", token);
+
+  // limpiar URL
+  window.history.replaceState(null, null, window.location.pathname);
+
+  // verificar usuario automáticamente
+  initUser();
+}
+
+async function initUser() {
   const msgEl = document.getElementById('authMsg');
   msgEl.textContent = 'Verificando...';
   msgEl.className = 'auth-msg';
 
   try {
-    const res = await alGql('{ Viewer { id name } }', {}, false);
+    const res = await alGql('{ Viewer { id name } }', true);
+
     if (res?.data?.Viewer) {
       S.username = res.data.Viewer.name;
       S.userId   = res.data.Viewer.id;
+
       msgEl.textContent = `✓ Conectado como ${S.username}`;
       msgEl.className   = 'auth-msg ok';
+
       document.getElementById('btnViewList').onclick =
         () => window.open(`https://anilist.co/user/${S.username}/mangalist`, '_blank');
+
       setTimeout(() => goStep(1), 900);
     } else {
-      msgEl.textContent = 'Token inválido o expirado. Vuelve a autorizar la app.';
+      msgEl.textContent = 'Error al autenticar';
       msgEl.className   = 'auth-msg err';
     }
   } catch (e) {
-    msgEl.textContent = `Error de red: ${e.message}`;
+    msgEl.textContent = `Error: ${e.message}`;
     msgEl.className   = 'auth-msg err';
   }
 }
@@ -496,4 +514,5 @@ function dlReport() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initDropZone();
+  handleAuth();
 });
