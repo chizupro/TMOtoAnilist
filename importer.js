@@ -9,7 +9,9 @@
  *  4. Guardado en la lista del usuario con el estado correcto
  */
 
-'use strict';
+// ─── TU CLIENT ID DE ANILIST ───────────────────────────────────────────────
+// Reemplaza este valor con tu Client ID real de anilist.co/settings/developer
+const ANILIST_CLIENT_ID = 'TU_CLIENT_ID_AQUI';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────
 
@@ -106,66 +108,41 @@ function setBadge(status) {
 
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
-const CLIENT_ID = "39195";
-
 function startAuth() {
-  const redirectUri = "https://chizupro.github.io/TMOtoAnilist/index.html";
-// a
-  const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=`;
-  console.log(url);
-  window.location.href = url;
+  S.clientId = ANILIST_CLIENT_ID;
+  window.open(
+    `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&response_type=token`,
+    '_blank'
+  );
+  document.getElementById('tokenSection').classList.remove('hidden');
 }
 
-
-function handleAuth() {
-  console.log("HASH:", window.location.hash)
-  const hash = window.location.hash.substring(1);
-  const params = new URLSearchParams(hash);
-  const token = params.get("access_token");
-
+async function verifyToken() {
+  const token = document.getElementById('authToken').value.trim();
   if (!token) return;
-
   S.token = token;
-  localStorage.setItem("anilist_token", token);
 
-  // limpiar URL
-  window.history.replaceState(null, null, window.location.pathname);
-
-  if (typeof initUser == "function") {
-    initUser();
-  }
-}
-
-async function initUser() {
   const msgEl = document.getElementById('authMsg');
-
-  if (msgEl) {
-    msgEl.textContent = 'Verificando...';
-    msgEl.className = 'auth-msg';
-  }
+  msgEl.textContent = 'Verificando...';
+  msgEl.className = 'auth-msg';
 
   try {
-    const res = await alGql('{ Viewer { id name } }', {}, true);
-
+    const res = await alGql('{ Viewer { id name } }', {}, false);
     if (res?.data?.Viewer) {
       S.username = res.data.Viewer.name;
       S.userId   = res.data.Viewer.id;
-
-      if (msgEl) {
-        msgEl.textContent = `✓ Conectado como ${S.username}`;
-        msgEl.className   = 'auth-msg ok';
-      }
-
+      msgEl.textContent = `✓ Conectado como ${S.username}`;
+      msgEl.className   = 'auth-msg ok';
       document.getElementById('btnViewList').onclick =
         () => window.open(`https://anilist.co/user/${S.username}/mangalist`, '_blank');
-
       setTimeout(() => goStep(1), 900);
-    }
-  } catch (e) {
-    if (msgEl) {
-      msgEl.textContent = `Error: ${e.message}`;
+    } else {
+      msgEl.textContent = 'Token inválido o expirado. Vuelve a autorizar la app.';
       msgEl.className   = 'auth-msg err';
     }
+  } catch (e) {
+    msgEl.textContent = `Error de red: ${e.message}`;
+    msgEl.className   = 'auth-msg err';
   }
 }
 
@@ -519,7 +496,4 @@ function dlReport() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initDropZone();
-  handleAuth();
 });
-
-// gaaa

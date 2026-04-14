@@ -48,22 +48,9 @@
     <section class="panel active" id="panel-0">
       <h2>Conectar con AniList</h2>
       <p class="panel-desc">
-        Necesitas crear una aplicación gratuita en AniList para obtener un <strong>Client ID</strong>.
-        Solo toma 2 minutos y es completamente gratis.
+        Vincula tu cuenta de AniList para poder importar tus listas de TMO.
+        Solo necesitas autorizar la app una vez.
       </p>
-
-      <div class="instruction-card">
-        <div class="instruction-title">Cómo obtener tu Client ID</div>
-        <ol>
-          <li>Ve a <a href="https://anilist.co/settings/developer" target="_blank" rel="noopener">anilist.co/settings/developer</a></li>
-          <li>Haz clic en <em>"Create new client"</em></li>
-          <li>Ponle cualquier nombre (ej: <code>TMO Importer</code>)</li>
-          <li>En <em>Redirect URL</em> pon exactamente: <code>https://anilist.co/api/v2/oauth/pin</code></li>
-          <li>Guarda y copia el <strong>Client ID</strong> que aparece</li>
-        </ol>
-      </div>
-
-      
 
       <button class="btn-primary" id="btnAuth" onclick="startAuth()">
         Abrir ventana de autorización →
