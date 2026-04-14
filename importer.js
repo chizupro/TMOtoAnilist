@@ -12,7 +12,7 @@
 'use strict';
 
 // ─── TU CLIENT ID DE ANILIST ───────────────────────────────────────────────
-const ANILIST_CLIENT_ID = '39191';
+const ANILIST_CLIENT_ID = '39269';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────
 
