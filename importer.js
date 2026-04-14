@@ -106,7 +106,7 @@ function setBadge(status) {
 
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
-const CLIENT_ID = "39191";
+const CLIENT_ID = "39195";
 
 function startAuth() {
   const redirectUri = "https://chizupro.github.io/TMOtoAnilist/";
