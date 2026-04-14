@@ -109,7 +109,7 @@ function setBadge(status) {
 const CLIENT_ID = "39195";
 
 function startAuth() {
-  const redirectUri = "https://chizupro.github.io/TMOtoAnilist/";
+  const redirectUri = "https://chizupro.github.io/TMOtoAnilist";
 // a
   const url = `https://anilist.co/api/v2/oauth/authorize?client_id=${CLIENT_ID}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}`;
   console.log(url);
@@ -118,6 +118,7 @@ function startAuth() {
 
 
 function handleAuth() {
+  console.log("HASH:", window.location.hash)
   const hash = window.location.hash.substring(1);
   const params = new URLSearchParams(hash);
   const token = params.get("access_token");
