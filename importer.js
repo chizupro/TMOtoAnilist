@@ -95,12 +95,15 @@ function setBadge(status) {
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
 function startAuth() {
-  const authUrl =
-    `https://anilist.co/api/v2/oauth/authorize` +
-    `?client_id=${ANILIST_CLIENT_ID}` +
-    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&response_type=token`;
+  const params = new URLSearchParams();
 
+  params.set('client_id', ANILIST_CLIENT_ID);
+  params.set('redirect_uri', REDIRECT_URI);
+  params.set('response_type', 'token');
+
+  const authUrl = `https://anilist.co/api/v2/oauth/authorize?${params.toString()}`;
+
+  console.log(authUrl); // debug
   window.location.href = authUrl;
 }
 
