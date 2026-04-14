@@ -53,21 +53,10 @@
       </p>
 
       <button class="btn-primary" id="btnAuth" onclick="startAuth()">
-        Abrir ventana de autorización →
+        Conectar con AniList →
       </button>
 
-      <div id="tokenSection" class="token-section hidden">
-        <div class="info-box">
-          <strong>Autoriza la app</strong> en la ventana que se abrió. AniList te mostrará un token largo.
-          Cópialo completo y pégalo aquí abajo.
-        </div>
-        <div class="field-group">
-          <label for="authToken">Access Token</label>
-          <input type="text" id="authToken" placeholder="eyJ0eXAiOiJKV1QiLCJhbGci..." autocomplete="off" />
-        </div>
-        <button class="btn-primary" onclick="verifyToken()">Verificar y continuar →</button>
-        <div id="authMsg" class="auth-msg"></div>
-      </div>
+      <div id="authStatus" class="auth-msg hidden"></div>
     </section>
 
     <!-- ── PASO 2: UPLOAD ── -->

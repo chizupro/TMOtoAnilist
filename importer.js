@@ -3,21 +3,22 @@
  * Importa listas del backup de TMO a AniList usando la API de GraphQL.
  *
  * Flujo:
- *  1. Auth OAuth implicit (token via pin)
+ *  1. Auth OAuth implicit con redirect automático (sin copiar tokens)
  *  2. Parseo de HTMLs del backup de TMO
  *  3. Búsqueda de cada manga en AniList (título original + título ES)
  *  4. Guardado en la lista del usuario con el estado correcto
  */
 
+'use strict';
+
 // ─── TU CLIENT ID DE ANILIST ───────────────────────────────────────────────
-// Reemplaza este valor con tu Client ID real de anilist.co/settings/developer
 const ANILIST_CLIENT_ID = '39191';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────
 
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
+const REDIRECT_URI     = 'https://chizupro.github.io/TMOtoAnilist/';
 
-/** Mapeo de estados de AniList a etiquetas en español */
 const AL_STATUS_LABEL = {
   CURRENT:   'Leyendo',
   PLANNING:  'Plan a leer',
@@ -27,10 +28,6 @@ const AL_STATUS_LABEL = {
   REPEATING: 'Releyendo',
 };
 
-/**
- * Palabras clave para detectar el estado a partir del nombre del archivo/página.
- * El orden importa: se evalúa de arriba a abajo y se toma el primer match.
- */
 const KEYWORD_MAP = [
   [['siguiendo', 'following', 'leyendo', 'reading', 'current', 'en curso', 'en lectura'], 'CURRENT'],
   [['complet', 'terminado', 'finished', 'leido', 'leído'],                                 'COMPLETED'],
@@ -40,7 +37,6 @@ const KEYWORD_MAP = [
   [['plan', 'quiero', 'pendiente', 'want', 'lista de espera', 'wishlist', 'planning'],      'PLANNING'],
 ];
 
-/** Delay entre peticiones para respetar el rate limit de AniList (~90 req/min) */
 const REQUEST_DELAY_MS = 750;
 
 // ─── ESTADO GLOBAL ──────────────────────────────────────────────────────────
@@ -49,27 +45,19 @@ const S = {
   token:      '',
   username:   '',
   userId:     null,
-  clientId:   '',
-  allEntries: [],   // { primary, secondary, status, url, listName }
-  results:    [],   // { ...entry, result: 'ok'|'not_found'|'error', mediaId }
+  allEntries: [],
+  results:    [],
   ok: 0, skip: 0, err: 0,
 };
 
-/** customStatusMap: filename → AniList status (editable por el usuario) */
 let customStatusMap = {};
 let loadedFiles = [];
 
 // ─── UTILIDADES ────────────────────────────────────────────────────────────
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+const norm  = str => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-/** Normaliza un string para comparación: minúsculas, solo alfanumérico */
-const norm = str => (str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-/**
- * Detecta el estado de AniList a partir de un string (nombre de archivo o topnav).
- * Devuelve 'PLANNING' como fallback.
- */
 function detectStatus(name) {
   const n = name.toLowerCase();
   for (const [keys, status] of KEYWORD_MAP) {
@@ -81,22 +69,20 @@ function detectStatus(name) {
 // ─── UI HELPERS ─────────────────────────────────────────────────────────────
 
 function goStep(n) {
-  // Paneles
   document.querySelectorAll('.panel').forEach((p, i) => {
     p.classList.toggle('active', i === n);
   });
-  // Stepper dots
   document.querySelectorAll('.step-item').forEach((d, i) => {
     d.classList.remove('active', 'done');
-    if (i < n)      d.classList.add('done');
+    if (i < n)        d.classList.add('done');
     else if (i === n) d.classList.add('active');
   });
 }
 
 function addLog(msg, cls) {
-  const el = document.getElementById('importLog');
+  const el  = document.getElementById('importLog');
   const div = document.createElement('div');
-  div.className = cls || '';
+  div.className   = cls || '';
   div.textContent = msg;
   el.appendChild(div);
   el.scrollTop = el.scrollHeight;
@@ -109,40 +95,55 @@ function setBadge(status) {
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
 function startAuth() {
-  S.clientId = ANILIST_CLIENT_ID;
-  window.open(
-    `https://anilist.co/api/v2/oauth/authorize?client_id=${ANILIST_CLIENT_ID}&response_type=token`,
-    '_blank'
-  );
-  document.getElementById('tokenSection').classList.remove('hidden');
+  // Redirige la pestaña actual a AniList.
+  // Al autorizar, AniList vuelve a REDIRECT_URI con #access_token=... en la URL.
+  // checkAuthCallback() lo captura automáticamente al cargar la página.
+  window.location.href =
+    `https://anilist.co/api/v2/oauth/authorize` +
+    `?client_id=${ANILIST_CLIENT_ID}` +
+    `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+    `&response_type=token`;
 }
 
-async function verifyToken() {
-  const token = document.getElementById('authToken').value.trim();
+/**
+ * Se ejecuta al cargar la página.
+ * Si la URL tiene #access_token=..., AniList ya autorizó → login automático.
+ */
+async function checkAuthCallback() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+
+  const params = new URLSearchParams(hash);
+  const token  = params.get('access_token');
   if (!token) return;
+
+  // Limpiar el token de la URL por seguridad
+  history.replaceState(null, '', window.location.pathname);
+
   S.token = token;
 
-  const msgEl = document.getElementById('authMsg');
-  msgEl.textContent = 'Verificando...';
-  msgEl.className = 'auth-msg';
+  const authStatus = document.getElementById('authStatus');
+  authStatus.classList.remove('hidden');
+  authStatus.textContent = 'Conectando con AniList...';
+  authStatus.className   = 'auth-msg';
 
   try {
-    const res = await alGql('{ Viewer { id name } }', {}, false);
+    const res = await alGql('{ Viewer { id name } }', {}, true);
     if (res?.data?.Viewer) {
       S.username = res.data.Viewer.name;
       S.userId   = res.data.Viewer.id;
-      msgEl.textContent = `✓ Conectado como ${S.username}`;
-      msgEl.className   = 'auth-msg ok';
+      authStatus.textContent = `✓ Conectado como ${S.username}`;
+      authStatus.className   = 'auth-msg ok';
       document.getElementById('btnViewList').onclick =
         () => window.open(`https://anilist.co/user/${S.username}/mangalist`, '_blank');
       setTimeout(() => goStep(1), 900);
     } else {
-      msgEl.textContent = 'Token inválido o expirado. Vuelve a autorizar la app.';
-      msgEl.className   = 'auth-msg err';
+      authStatus.textContent = 'No se pudo verificar la cuenta. Intenta de nuevo.';
+      authStatus.className   = 'auth-msg err';
     }
   } catch (e) {
-    msgEl.textContent = `Error de red: ${e.message}`;
-    msgEl.className   = 'auth-msg err';
+    authStatus.textContent = `Error de red: ${e.message}`;
+    authStatus.className   = 'auth-msg err';
   }
 }
 
@@ -170,7 +171,6 @@ function handleFiles(files) {
   loadedFiles = Array.from(files);
   if (!loadedFiles.length) return;
 
-  // Inicializar customStatusMap con la detección automática
   loadedFiles.forEach(f => {
     const nameNoExt = f.name.replace(/\.[^.]+$/, '');
     if (!customStatusMap[f.name]) {
@@ -218,22 +218,13 @@ function buildStatusMapUI() {
 
 // ─── PARSEO DEL HTML DE TMO ────────────────────────────────────────────────
 
-/**
- * Parsea el HTML del backup de TMO y extrae las entradas.
- * Estructura esperada:
- *   - .topnav  → nombre de la lista (ej: "Siguiendo")
- *   - tbody tr → cada fila es un manga
- *     - img[alt] → título original (japonés/coreano)
- *     - a        → texto = título en español, href = URL de TMO
- */
 function parseHTML(html, defaultStatus) {
   const parser = new DOMParser();
   const doc    = parser.parseFromString(html, 'text/html');
 
-  // Detectar estado desde el topnav o el <title>
-  const topnav   = doc.querySelector('.topnav')?.textContent?.trim()
-                || doc.querySelector('title')?.textContent?.trim()
-                || '';
+  const topnav = doc.querySelector('.topnav')?.textContent?.trim()
+              || doc.querySelector('title')?.textContent?.trim()
+              || '';
   const status = defaultStatus || detectStatus(topnav);
 
   const entries = [];
@@ -243,15 +234,12 @@ function parseHTML(html, defaultStatus) {
     const a   = row.querySelector('a');
     if (!a) return;
 
-    const titleAlt = img?.getAttribute('alt')?.trim() || '';  // Título original
-    const titleEs  = a.textContent?.trim()             || '';  // Título en español
+    const titleAlt = img?.getAttribute('alt')?.trim() || '';
+    const titleEs  = a.textContent?.trim()             || '';
     const url      = a.getAttribute('href')            || '';
 
-    // Usamos el título original como primario y el español como alternativo
     const primary   = titleAlt || titleEs;
-    const secondary = (titleAlt && titleEs && norm(titleAlt) !== norm(titleEs))
-      ? titleEs
-      : '';
+    const secondary = (titleAlt && titleEs && norm(titleAlt) !== norm(titleEs)) ? titleEs : '';
 
     if (!primary) return;
 
@@ -265,8 +253,8 @@ async function parseAllFiles() {
   S.allEntries = [];
 
   for (const f of loadedFiles) {
-    const html   = await f.text();
-    const status = customStatusMap[f.name] || detectStatus(f.name.replace(/\.[^.]+$/, ''));
+    const html    = await f.text();
+    const status  = customStatusMap[f.name] || detectStatus(f.name.replace(/\.[^.]+$/, ''));
     const entries = parseHTML(html, status);
     S.allEntries.push(...entries);
   }
@@ -281,7 +269,6 @@ async function parseAllFiles() {
 }
 
 function buildPreview() {
-  // Stats por estado
   const counts = {};
   S.allEntries.forEach(e => { counts[e.status] = (counts[e.status] || 0) + 1; });
 
@@ -292,7 +279,6 @@ function buildPreview() {
      </div>`
   ).join('');
 
-  // Lista de mangas (máx. 200 en preview para no bloquear el DOM)
   const shown = S.allEntries.slice(0, 200);
   const rest  = S.allEntries.length - shown.length;
 
@@ -317,9 +303,8 @@ async function runImport() {
   for (let i = 0; i < total; i++) {
     const entry = S.allEntries[i];
 
-    // Progreso
     const pct = Math.round((i / total) * 100);
-    document.getElementById('progFill').style.width = pct + '%';
+    document.getElementById('progFill').style.width  = pct + '%';
     document.getElementById('progLabel').textContent = `${i + 1} / ${total}`;
 
     addLog(`🔍 ${entry.primary}`, 'info');
@@ -328,10 +313,8 @@ async function runImport() {
     let result  = 'error';
 
     try {
-      // 1. Buscar por título original
       mediaId = await searchManga(entry.primary);
 
-      // 2. Si no se encontró y hay título alternativo, intentar con él
       if (!mediaId && entry.secondary) {
         addLog(`   → probando con: ${entry.secondary}`, 'info');
         mediaId = await searchManga(entry.secondary);
@@ -361,19 +344,13 @@ async function runImport() {
     await sleep(REQUEST_DELAY_MS);
   }
 
-  // Completado
-  document.getElementById('progFill').style.width = '100%';
+  document.getElementById('progFill').style.width  = '100%';
   document.getElementById('progLabel').textContent = `${total} / ${total} — Completado`;
   document.getElementById('doneSection').classList.remove('hidden');
 }
 
 // ─── API DE ANILIST ────────────────────────────────────────────────────────
 
-/**
- * Busca un manga en AniList por nombre.
- * Compara contra todos los títulos y sinónimos disponibles.
- * Devuelve el ID del media o null si no se encontró.
- */
 async function searchManga(title) {
   const query = `
     query ($search: String) {
@@ -402,24 +379,15 @@ async function searchManga(title) {
       ...(m.synonyms || []),
     ].filter(Boolean).map(norm);
 
-    // Match exacto
     if (candidates.some(c => c === target)) return m.id;
-
-    // Match por substring bidireccional (para títulos acortados o con artículos)
-    if (candidates.some(c => c.length > 4 && (c.includes(target) || target.includes(c)))) {
-      return m.id;
-    }
+    if (candidates.some(c => c.length > 4 && (c.includes(target) || target.includes(c)))) return m.id;
   }
 
-  // Fallback: si el título es muy específico (>20 chars), tomar el primer resultado
   if (title.length > 20) return results[0]?.id || null;
 
   return null;
 }
 
-/**
- * Guarda o actualiza una entrada en la lista del usuario.
- */
 async function saveMangaEntry(mediaId, status) {
   const mutation = `
     mutation ($mediaId: Int, $status: MediaListStatus) {
@@ -432,10 +400,6 @@ async function saveMangaEntry(mediaId, status) {
   return alGql(mutation, { mediaId, status }, true);
 }
 
-/**
- * Ejecuta una petición GraphQL a AniList.
- * Maneja automáticamente el rate limit (HTTP 429) esperando 65 segundos.
- */
 async function alGql(query, variables, withAuth) {
   const headers = {
     'Content-Type': 'application/json',
@@ -449,7 +413,6 @@ async function alGql(query, variables, withAuth) {
     body:    JSON.stringify({ query, variables }),
   });
 
-  // Rate limit → esperar y reintentar
   if (res.status === 429) {
     addLog('   ⏳ Rate limit de AniList — esperando 65 segundos...', 'warn');
     await sleep(65_000);
@@ -480,7 +443,6 @@ function dlReport() {
     ].join(',')
   );
 
-  // BOM para que Excel lo abra bien en UTF-8
   const blob = new Blob(['\uFEFF' + [header, ...rows].join('\n')], {
     type: 'text/csv;charset=utf-8',
   });
@@ -496,4 +458,5 @@ function dlReport() {
 
 document.addEventListener('DOMContentLoaded', () => {
   initDropZone();
+  checkAuthCallback(); // Captura el token si AniList redirigió aquí
 });
