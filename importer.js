@@ -109,40 +109,53 @@ function startAuth() {
  * Si la URL tiene #access_token=..., AniList ya autorizó → login automático.
  */
 async function checkAuthCallback() {
-  const hash = window.location.hash.slice(1);
-  if (!hash) return;
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
 
-  const params = new URLSearchParams(hash);
-  const token  = params.get('access_token');
-  if (!token) return;
+  if (!code) return;
 
-  // Limpiar el token de la URL por seguridad
+  // limpiar URL
   history.replaceState(null, '', window.location.pathname);
-
-  S.token = token;
 
   const authStatus = document.getElementById('authStatus');
   authStatus.classList.remove('hidden');
-  authStatus.textContent = 'Conectando con AniList...';
-  authStatus.className   = 'auth-msg';
+  authStatus.textContent = 'Intercambiando código...';
+  authStatus.className = 'auth-msg';
 
   try {
+    const tokenRes = await fetch('https://anilist.co/api/v2/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'authorization_code',
+        client_id: ANILIST_CLIENT_ID,
+        client_secret: 'xaa0Bsw...Qbe93', // TU SECRET
+        redirect_uri: REDIRECT_URI,
+        code: code
+      })
+    });
+
+    const data = await tokenRes.json();
+    S.token = data.access_token;
+
     const res = await alGql('{ Viewer { id name } }', {}, true);
+
     if (res?.data?.Viewer) {
       S.username = res.data.Viewer.name;
-      S.userId   = res.data.Viewer.id;
+      S.userId = res.data.Viewer.id;
+
       authStatus.textContent = `✓ Conectado como ${S.username}`;
-      authStatus.className   = 'auth-msg ok';
+      authStatus.className = 'auth-msg ok';
+
       document.getElementById('btnViewList').onclick =
         () => window.open(`https://anilist.co/user/${S.username}/mangalist`, '_blank');
+
       setTimeout(() => goStep(1), 900);
-    } else {
-      authStatus.textContent = 'No se pudo verificar la cuenta. Intenta de nuevo.';
-      authStatus.className   = 'auth-msg err';
     }
+
   } catch (e) {
-    authStatus.textContent = `Error de red: ${e.message}`;
-    authStatus.className   = 'auth-msg err';
+    authStatus.textContent = `Error: ${e.message}`;
+    authStatus.className = 'auth-msg err';
   }
 }
 
