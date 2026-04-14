@@ -99,7 +99,7 @@ function startAuth() {
     `https://anilist.co/api/v2/oauth/authorize` +
     `?client_id=${ANILIST_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-    `&response_type=token`;
+    `&response_type=code`;
 
   window.location.href = authUrl;
 }
