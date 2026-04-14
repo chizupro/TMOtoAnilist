@@ -95,14 +95,13 @@ function setBadge(status) {
 // ─── PASO 1: AUTENTICACIÓN ─────────────────────────────────────────────────
 
 function startAuth() {
-  // Redirige la pestaña actual a AniList.
-  // Al autorizar, AniList vuelve a REDIRECT_URI con #access_token=... en la URL.
-  // checkAuthCallback() lo captura automáticamente al cargar la página.
-  window.location.href =
+  const authUrl =
     `https://anilist.co/api/v2/oauth/authorize` +
     `?client_id=${ANILIST_CLIENT_ID}` +
     `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
     `&response_type=token`;
+
+  window.location.href = authUrl;
 }
 
 /**
