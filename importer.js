@@ -11,7 +11,7 @@
 
 // ─── TU CLIENT ID DE ANILIST ───────────────────────────────────────────────
 // Reemplaza este valor con tu Client ID real de anilist.co/settings/developer
-const ANILIST_CLIENT_ID = 'TU_CLIENT_ID_AQUI';
+const ANILIST_CLIENT_ID = '39191';
 
 // ─── CONSTANTES ────────────────────────────────────────────────────────────
 
